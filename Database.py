@@ -58,7 +58,7 @@ class Database():
 		#return field
 		sql += " RETURNING " + returnField
 
-		print (sql)
+		#print (sql)
 		cursor = self.conn.cursor()
 		cursor.execute(sql)
 		self.conn.commit()

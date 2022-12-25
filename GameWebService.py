@@ -23,6 +23,7 @@ class RestGaldur(object):
 		else:
 			return True
 
+	#puts the player in the matchmaking room
 	@cherrypy.expose
 	@cherrypy.tools.json_out()
 	@cherrypy.tools.json_in()
@@ -107,6 +108,67 @@ class RestGaldur(object):
 		output = pd.DataFrame(output)
 		return output.to_json()
 
+	#checks if the player waiting for a game already got a match
+	@cherrypy.expose
+	@cherrypy.tools.json_out()
+	@cherrypy.tools.json_in()
+	def checkMM(self):
+		"""Handle HTTP requests against ``/tokenize`` URI."""
+		if cherrypy.request.method == 'OPTIONS':
+		#	# This is a request that browser sends in CORS prior to
+		#	# sending a real request.
+
+		#	# Set up extra headers for a pre-flight OPTIONS request.
+			return cherrypy_cors.preflight(allowed_methods=['GET', 'POST'])
+		
+		#check auth token
+		if not self.checkauth():
+			return [1, "Auth Error!"]
+
+		#id of the player comes as param
+		data = cherrypy.request.json
+		#print(data)
+		df = pd.DataFrame(data)
+		idPlayer = int(df["idPlayer"][0])
+
+		#print(idPlayer)
+
+		#return value
+		output = []
+
+		#connect to database
+		database.ConnectDB()
+
+		#before anything, checks if this player actually exists
+		playerExists = database.LoadDatabase(["id"], "player", "id = " + str(idPlayer))
+
+		#just keep going if player exists
+		if len(playerExists) == 1:
+			#checks if a game was already started with this fella
+			playing = database.LoadDatabase(["id"], "game", "player1 = " + str(idPlayer) + " or player2 = " + str(idPlayer))
+
+			#just not, ok.
+			if len(playing) == 0:
+				output = [2, "Player already waiting for match!"]
+			#if player already in a match, need to redirect him on the app
+			else:
+				idMatch = playing[0][0]
+				output = [42, idMatch]
+		#if player does not exist, warning
+		else:
+			output = [5, "Player does not exist!"]
+
+		#disconnect from database
+		database.DisconnectDB()
+		#output.show()
+		
+		gc.collect()
+
+		#format the return
+		output = pd.DataFrame(output)
+		return output.to_json()
+
+	#register a new player
 	@cherrypy.expose
 	@cherrypy.tools.json_out()
 	@cherrypy.tools.json_in()
@@ -164,6 +226,7 @@ class RestGaldur(object):
 		output = pd.DataFrame(output)
 		return output.to_json()
 
+	#player login, check if exists in the database and if data provided is correct
 	@cherrypy.expose
 	@cherrypy.tools.json_out()
 	@cherrypy.tools.json_in()
@@ -187,7 +250,7 @@ class RestGaldur(object):
 		user = df["user"][0]
 		password = df["password"][0]
 
-		print(user, password)
+		#print(user, password)
 
 		#return value
 		output = []
@@ -226,6 +289,64 @@ class RestGaldur(object):
 		output = pd.DataFrame(output)
 		return output.to_json()
 
+	#cancel the matchmaking of the player
+	@cherrypy.expose
+	@cherrypy.tools.json_out()
+	@cherrypy.tools.json_in()
+	def cancelMatchMaking(self):
+		"""Handle HTTP requests against ``/tokenize`` URI."""
+		if cherrypy.request.method == 'OPTIONS':
+		#	# This is a request that browser sends in CORS prior to
+		#	# sending a real request.
+
+		#	# Set up extra headers for a pre-flight OPTIONS request.
+			return cherrypy_cors.preflight(allowed_methods=['GET', 'POST'])
+
+		#check auth token
+		if not self.checkauth():
+			return [1, "Auth Error!"]
+
+		#player info comes as param
+		data = cherrypy.request.json
+		#print(data)
+		df = pd.DataFrame(data)
+		idPlayer = df["idPlayer"][0]
+
+		#return value
+		output = []
+
+		#connect to database
+		database.ConnectDB()
+
+		#before anything, checks if this player actually exists
+		playerExists = database.LoadDatabase(["id"], "player", "id = " + str(idPlayer))
+
+		#just keep going if player exists
+		if len(playerExists) == 1:
+			#check if user is really waiting for a match
+			waiting = database.LoadDatabase(["id"], "matchmaking", "player1 = " + str(idPlayer) + " or player2 = " + str(idPlayer))
+		
+			#if waiting is an empty list, the player is not there...
+			if len(waiting) == 0:
+				output = [7, "Player not waiting for a match!"]
+			#else, we take the player out of there
+			else:
+				database.DeleteDatabase("matchmaking", "player1 = " + str(idPlayer) + " or player2 = " + str(idPlayer))
+				output = [42, "Player removed from the queue!"]
+		#if player does not exist, cant login
+		else:
+			output = [5, "Player does not exists!"]
+
+		#disconnect from database
+		database.DisconnectDB()
+		#output.show()
+		
+		gc.collect()
+
+		#format the return
+		output = pd.DataFrame(output)
+		return output.to_json()
+
 if __name__ == '__main__':
 	cherrypy_cors.install()
 	config = {'tools.sessions.timeout': 60, 'server.socket_host': '0.0.0.0', 'server.socket_port': int(os.environ.get('PORT', 5000)), 'cors.expose.on': True} #, 'cors.expose.on': True
@@ -240,6 +361,7 @@ if __name__ == '__main__':
 #player already in a game: 3
 #player already exists: 4
 #wrong password: 6
+#player not found in matchmaking: 7
 
 #running:
 #matchmaking: 
