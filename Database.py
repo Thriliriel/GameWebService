@@ -9,7 +9,8 @@ class Database():
 		self.conn = psycopg2.connect(host="localhost",
 								database="galdur",
 								user="postgres",
-								password="postgres")
+								password="postgres",
+								port=5433)
 		
 		#heroku
 		#DATABASE_URL = os.environ.get('DATABASE_URL')

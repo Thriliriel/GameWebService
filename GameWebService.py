@@ -79,8 +79,11 @@ class RestGaldur(object):
 					idPlayer1 = waiting[0][1]
 					#Check if it is not the same player... just keep going if different players
 					if idPlayer != idPlayer1:
+						#starting player. Always the first player who entered matchmaking. We can random it later.
+						startPlayer = idPlayer1
+
 						#insert into game
-						idGame = database.InsertDatabase("game", ["player1", "player2"], [idPlayer1, idPlayer])
+						idGame = database.InsertDatabase("game", ["player1", "player2", "startplayer"], [idPlayer1, idPlayer, startPlayer])
 
 						#delete from matchmaking
 						database.DeleteDatabase("matchmaking", "id = " + str(idMatch))
@@ -157,6 +160,58 @@ class RestGaldur(object):
 		#if player does not exist, warning
 		else:
 			output = [5, "Player does not exist!"]
+
+		#disconnect from database
+		database.DisconnectDB()
+		#output.show()
+		
+		gc.collect()
+
+		#format the return
+		output = pd.DataFrame(output)
+		return output.to_json()
+
+	#gets the information of a game, back to the client
+	@cherrypy.expose
+	@cherrypy.tools.json_out()
+	@cherrypy.tools.json_in()
+	def checkGame(self):
+		"""Handle HTTP requests against ``/tokenize`` URI."""
+		if cherrypy.request.method == 'OPTIONS':
+		#	# This is a request that browser sends in CORS prior to
+		#	# sending a real request.
+
+		#	# Set up extra headers for a pre-flight OPTIONS request.
+			return cherrypy_cors.preflight(allowed_methods=['GET', 'POST'])
+		
+		#check auth token
+		if not self.checkauth():
+			return [1, "Auth Error!"]
+
+		#id of the game comes as param
+		data = cherrypy.request.json
+		#print(data)
+		df = pd.DataFrame(data)
+		idGame = int(df["idGame"][0])
+
+		#print(idPlayer)
+
+		#return value
+		output = []
+
+		#connect to database
+		database.ConnectDB()
+
+		#before anything, checks if this game actually exists
+		gameExists = database.LoadDatabase(["id","player1","player2","extract('epoch' from starttime)","startplayer"], "game", "id = " + str(idGame))
+
+		#just keep going if game exists
+		if len(gameExists) == 1:
+			#return all the information about the game
+			output = [42, gameExists[0][0], gameExists[0][1], gameExists[0][2], gameExists[0][3], gameExists[0][4]]
+		#if game does not exist, warning
+		else:
+			output = [8, "Game does not exist!"]
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -347,6 +402,72 @@ class RestGaldur(object):
 		output = pd.DataFrame(output)
 		return output.to_json()
 
+	#all the initial inserts, to keep database integrity with the files
+	@cherrypy.expose
+	@cherrypy.tools.json_out()
+	@cherrypy.tools.json_in()
+	def dataInserts(self):
+		"""Handle HTTP requests against ``/tokenize`` URI."""
+		if cherrypy.request.method == 'OPTIONS':
+		#	# This is a request that browser sends in CORS prior to
+		#	# sending a real request.
+
+		#	# Set up extra headers for a pre-flight OPTIONS request.
+			return cherrypy_cors.preflight(allowed_methods=['GET', 'POST'])
+
+		#check auth token
+		if not self.checkauth():
+			return [1, "Auth Error!"]
+
+		#gameClass comes as param
+		data = cherrypy.request.json
+		#print(data['gameClass']['allRaces'])
+		#df = pd.DataFrame(data)
+		#idPlayer = df["idPlayer"][0]
+
+		#return value
+		output = [42, "Done!"]
+
+		#connect to database
+		database.ConnectDB()
+		
+		#insert all initial stuff
+		#race
+		for race in data['gameClass']['allRaces']:
+			database.InsertDatabase("race", ["id", "name"], [int(race['id']), "'"+race['name']+"'"])
+		#end race
+
+		#vocation
+		for vocation in data['gameClass']['allVocations']:
+			database.InsertDatabase("vocation", ["id", "name"], [int(vocation['id']), "'"+vocation['name']+"'"])
+		#end vocation
+
+		#heroes
+		for hero in data['gameClass']['allHeroes']:
+			database.InsertDatabase("hero", ["id", "name"], [int(hero['id']), "'"+hero['name']+"'"])
+		#end heroes
+
+		#general effects
+		for ge in data['gameClass']['allGeneralEffects']:
+			database.InsertDatabase("generaleffect", ["id", "name"], [int(ge['id']), "'"+ge['name']+"'"])
+		#end heroes
+
+		#all cards
+		for card in data['gameClass']['allCards']:
+			database.InsertDatabase("card", ["id", "name"], [int(card['id']), "'"+card['name']+"'"])
+		#end all cards
+		#end insert all initial stuff
+
+		#disconnect from database
+		database.DisconnectDB()
+		#output.show()
+		
+		gc.collect()
+
+		#format the return
+		output = pd.DataFrame(output)
+		return output.to_json()
+
 if __name__ == '__main__':
 	cherrypy_cors.install()
 	config = {'tools.sessions.timeout': 60, 'server.socket_host': '0.0.0.0', 'server.socket_port': int(os.environ.get('PORT', 5000)), 'cors.expose.on': True} #, 'cors.expose.on': True
@@ -362,6 +483,7 @@ if __name__ == '__main__':
 #player already exists: 4
 #wrong password: 6
 #player not found in matchmaking: 7
+#game does not exists: 8
 
 #running:
 #matchmaking: 
