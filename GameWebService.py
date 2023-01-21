@@ -402,6 +402,67 @@ class RestGaldur(object):
 		output = pd.DataFrame(output)
 		return output.to_json()
 
+	#insert the player hand into the database
+	@cherrypy.expose
+	@cherrypy.tools.json_out()
+	@cherrypy.tools.json_in()
+	def insertPlayerHand(self):
+		"""Handle HTTP requests against ``/tokenize`` URI."""
+		if cherrypy.request.method == 'OPTIONS':
+		#	# This is a request that browser sends in CORS prior to
+		#	# sending a real request.
+
+		#	# Set up extra headers for a pre-flight OPTIONS request.
+			return cherrypy_cors.preflight(allowed_methods=['GET', 'POST'])
+		
+		#check auth token
+		if not self.checkauth():
+			return [1, "Auth Error!"]
+
+		#id of the player comes as param
+		data = cherrypy.request.json
+		#print(data)
+		df = pd.DataFrame(data)
+		idPlayer = int(df["idPlayer"][0])
+		idGame = int(df["idGame"][0])
+		idCards = df["idCards"][0]
+
+		#split by the ,
+		idCards = idCards.split(',')
+
+		#print(idPlayer)
+		#print(str(idCards))
+
+		#return value
+		output = []
+
+		#connect to database
+		database.ConnectDB()
+
+		#before anything, checks if this player actually exists
+		playerExists = database.LoadDatabase(["id"], "player", "id = " + str(idPlayer))
+
+		#just keep going if player exists
+		if len(playerExists) == 1:
+			#for each card, insert it into player hand
+			for card in idCards:
+				database.InsertDatabase("gamecard", ["game","player","card"], [idGame,idPlayer,card], "card")
+
+			output = [42, "Hand Inserted!"]
+		#if player does not exist, warning
+		else:
+			output = [5, "Player does not exist!"]
+
+		#disconnect from database
+		database.DisconnectDB()
+		#output.show()
+		
+		gc.collect()
+
+		#format the return
+		output = pd.DataFrame(output)
+		return output.to_json()
+
 	#all the initial inserts, to keep database integrity with the files
 	@cherrypy.expose
 	@cherrypy.tools.json_out()
