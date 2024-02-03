@@ -4,8 +4,8 @@ import os
 import gc
 from Database import Database
 from datetime import datetime
-import pandas as pd
 import hashlib
+import json
 
 import cherrypy_cors
 
@@ -49,7 +49,7 @@ class RestGaldur(object):
 		#print(idPlayer)
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
@@ -72,7 +72,8 @@ class RestGaldur(object):
 					database.InsertDatabase("matchmaking", ["player1"], [idPlayer])
 
 					#waiting for game
-					output = [42, "Waiting for game..."]
+					output["resultCode"] = 42
+					output["result"] = {'0': "Waiting for game..."}
 				#else, there is aleady someone waiting to play. Get the player who is waiting, insert both into game and delete from matchmaking
 				else:
 					idMatch = waiting[0][0]
@@ -89,27 +90,32 @@ class RestGaldur(object):
 						database.DeleteDatabase("matchmaking", "id = " + str(idMatch))
 
 						#return the game id
-						output = [42, idGame]
+						output["resultCode"] = 42
+						output["result"] = {'0': idGame}
 					#else, player already waiting, warning
 					else:
-						output = [2, "Player already waiting for match!"]
+						output["resultCode"] = 2
+						output["result"] = {'0': "Player already waiting for match!"}
 
 			#if player already in a match, warning
 			else:
-				output = [3, "Player already in a match!"]
+				output["resultCode"] = 3
+				output["result"] = {'0': "Player already in a match!"}
 		#if player does not exist, warning
 		else:
-			output = [5, "Player does not exist!"]
+			output["resultCode"] = 5
+			output["result"] = {'0': "Player does not exist!"}
 
 		#disconnect from database
 		database.DisconnectDB()
 		#output.show()
+		#print(output)
 		
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame([output])
+		return str(output)
 
 	#checks if the player waiting for a game already got a match
 	@cherrypy.expose
@@ -137,7 +143,7 @@ class RestGaldur(object):
 		#print(idPlayer)
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
@@ -152,14 +158,17 @@ class RestGaldur(object):
 
 			#just not, ok.
 			if len(playing) == 0:
-				output = [2, "Player already waiting for match!"]
+				output["resultCode"] = 2
+				output["result"] = {'0': "Player already waiting for match!"}
 			#if player already in a match, need to redirect him on the app
 			else:
 				idMatch = playing[0][0]
-				output = [42, idMatch]
+				output["resultCode"] = 42
+				output["result"] = {'0': idMatch}
 		#if player does not exist, warning
 		else:
-			output = [5, "Player does not exist!"]
+			output["resultCode"] = 5
+			output["result"] = {'0': "Player does not exist!"}
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -168,8 +177,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(output)
+		return str(output)
 
 	#gets the information of a game, back to the client
 	@cherrypy.expose
@@ -197,21 +206,25 @@ class RestGaldur(object):
 		#print(idPlayer)
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
 
 		#before anything, checks if this game actually exists
-		gameExists = database.LoadDatabase(["id","player1","player2","extract('epoch' from starttime)","startplayer"], "game", "id = " + str(idGame))
+		gameExists = database.LoadDatabase(["id","player1","player2","extract('epoch' from starttime)","startplayer","card"], 
+									 "game", "id = " + str(idGame), "gamecard", "game.id=gamecard.game")
 
 		#just keep going if game exists
 		if len(gameExists) == 1:
 			#return all the information about the game
-			output = [42, gameExists[0][0], gameExists[0][1], gameExists[0][2], gameExists[0][3], gameExists[0][4]]
+			#output = [42, gameExists[0][0], gameExists[0][1], gameExists[0][2], gameExists[0][3], gameExists[0][4]]
+			output["resultCode"] = 42
+			output["result"] = {'0': gameExists}
 		#if game does not exist, warning
 		else:
-			output = [8, "Game does not exist!"]
+			output["resultCode"] = 8
+			output["result"] = {'0': "Game does not exist!"}
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -220,8 +233,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(output)
+		return str(output)
 
 	#register a new player
 	@cherrypy.expose
@@ -251,13 +264,15 @@ class RestGaldur(object):
 		#print(email, user, password)
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
 
 		#before anything, checks if this player actually exists
 		playerExists = database.LoadDatabase(["id"], "player", "email =	'" + str(email) + "'")
+
+		print(playerExists)
 
 		#just keep going if player does not exists
 		if len(playerExists) == 0:
@@ -266,10 +281,12 @@ class RestGaldur(object):
 			idPlayer = database.InsertDatabase("player", ["email", "name", "password"], ["'"+email+"'", "'"+user+"'", "'"+md5hash.hexdigest()+"'"])
 
 			#return the new player id
-			output = [42, idPlayer]
+			output["resultCode"] = 42
+			output["result"] = {'0': idPlayer}
 		#if player exist, cant register again
 		else:
-			output = [4, "Player already exists!"]
+			output["resultCode"] = 4
+			output["result"] = {'0': "Player already exists!"}
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -278,8 +295,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(output)
+		return str(output)
 
 	#player login, check if exists in the database and if data provided is correct
 	@cherrypy.expose
@@ -308,7 +325,7 @@ class RestGaldur(object):
 		#print(user, password)
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
@@ -326,13 +343,16 @@ class RestGaldur(object):
 			if len(logPlayer) > 0:
 				idPlayer = logPlayer[0][0]
 				namePlayer = logPlayer[0][1]
-				output = [42, idPlayer, namePlayer]
+				output["resultCode"] = 42
+				output["result"] = {'0': str(idPlayer), '1': namePlayer}
 			#else, password must be wrong
 			else:
-				output = [6, "Wrong password. Try again!"]			
+				output["resultCode"] = 6
+				output["result"] = {'0': "Wrong password. Try again!"}
 		#if player does not exist, cant login
 		else:
-			output = [5, "Player does not exists!"]
+			output["resultCode"] = 5
+			output["result"] = {'0': "Player does not exists!"}
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -341,8 +361,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(["result", output])
+		return json.dumps(output) #similar to str(), since it creates a string of the dict
 
 	#cancel the matchmaking of the player
 	@cherrypy.expose
@@ -368,7 +388,7 @@ class RestGaldur(object):
 		idPlayer = df["idPlayer"][0]
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
@@ -383,14 +403,17 @@ class RestGaldur(object):
 		
 			#if waiting is an empty list, the player is not there...
 			if len(waiting) == 0:
-				output = [7, "Player not waiting for a match!"]
+				output["resultCode"] = 7
+				output["result"] = {'0': "Player not waiting for a match!"}
 			#else, we take the player out of there
 			else:
 				database.DeleteDatabase("matchmaking", "player1 = " + str(idPlayer) + " or player2 = " + str(idPlayer))
-				output = [42, "Player removed from the queue!"]
+				output["resultCode"] = 42
+				output["result"] = {'0': "Player removed from the queue!"}
 		#if player does not exist, cant login
 		else:
-			output = [5, "Player does not exists!"]
+			output["resultCode"] = 5
+			output["result"] = {'0': "Player does not exists!"}
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -399,8 +422,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(output)
+		return str(output)
 
 	#insert the player hand into the database
 	@cherrypy.expose
@@ -434,7 +457,7 @@ class RestGaldur(object):
 		#print(str(idCards))
 
 		#return value
-		output = []
+		output = {}
 
 		#connect to database
 		database.ConnectDB()
@@ -448,10 +471,12 @@ class RestGaldur(object):
 			for card in idCards:
 				database.InsertDatabase("gamecard", ["game","player","card"], [idGame,idPlayer,card], "card")
 
-			output = [42, "Hand Inserted!"]
+			output["resultCode"] = 42
+			output["result"] = {'0': "Hand Inserted!"}
 		#if player does not exist, warning
 		else:
-			output = [5, "Player does not exist!"]
+			output["resultCode"] = 5
+			output["result"] = {'0': "Player does not exists!"}
 
 		#disconnect from database
 		database.DisconnectDB()
@@ -460,8 +485,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(output)
+		return str(output)
 
 	#all the initial inserts, to keep database integrity with the files
 	@cherrypy.expose
@@ -487,7 +512,7 @@ class RestGaldur(object):
 		#idPlayer = df["idPlayer"][0]
 
 		#return value
-		output = [42, "Done!"]
+		output = {'resultCode': 42, 'result': {'0': 'Done!'}}
 
 		#connect to database
 		database.ConnectDB()
@@ -526,8 +551,8 @@ class RestGaldur(object):
 		gc.collect()
 
 		#format the return
-		output = pd.DataFrame(output)
-		return output.to_json()
+		#output = pd.DataFrame(output)
+		return str(output)
 
 if __name__ == '__main__':
 	cherrypy_cors.install()

@@ -1,4 +1,5 @@
-import psycopg2
+#import psycopg2
+import mysql.connector
 import os
 
 class Database():
@@ -6,15 +7,10 @@ class Database():
 	conn = None
 
 	def ConnectDB(self):
-		self.conn = psycopg2.connect(host="localhost",
+		self.conn = mysql.connector.connect(host="localhost",
 								database="galdur",
-								user="postgres",
-								password="postgres",
-								port=5433)
-		
-		#heroku
-		#DATABASE_URL = os.environ.get('DATABASE_URL')
-		#self.conn = psycopg2.connect(DATABASE_URL)
+								user="root",
+								password="root")
 
 	def DisconnectDB(self):
 		#need to see how to do it
@@ -31,7 +27,7 @@ class Database():
 			return
 
 		#assemble the sql string
-		sql = "INSERT INTO public." + table + "("
+		sql = "INSERT INTO " + table + "("
 
 		#for each field...
 		i = 0
@@ -57,22 +53,28 @@ class Database():
 		sql += ")"
 
 		#return field
-		sql += " RETURNING " + returnField
+		#sql += " RETURNING " + returnField
 
 		#print (sql)
-		cursor = self.conn.cursor()
+		cursor = self.conn.cursor(buffered=True)
 		cursor.execute(sql)
 		self.conn.commit()
 
 		#get last id
-		data = cursor.fetchone()
+		data = cursor._last_insert_id
 
 		cursor.close()
 		
 		#return last id inserted
-		return data[0]
+		return data
 
-	def LoadDatabase(self, what, table, condition = ""):
+
+	#Example join:
+	#select * from game as game 
+	#inner join gamecard as gc 
+	#on game.id = gc.game
+	#where game.id = 22
+	def LoadDatabase(self, what, table, condition = "", join = "", on = ""):
 		#check conection first
 		if self.conn == None:
 			print("No connection!!")
@@ -96,14 +98,21 @@ class Database():
 
 				i += 1
 
-		sql += " FROM public." + table
+		sql += " FROM " + table
+
+		#joins with on?
+		if join != "":
+			sql += " INNER JOIN " + join
+
+			if on != "":
+				sql += " " + on
 		
 		#if we have condition, add it
 		if condition != "":
 			sql += " WHERE " + condition
 		
 		#print (sql)
-		cursor = self.conn.cursor()
+		cursor = self.conn.cursor(buffered=True)
 		cursor.execute(sql)
 		self.conn.commit()
 		myresult = cursor.fetchall()
@@ -120,13 +129,13 @@ class Database():
 			print("No connection!!")
 			return
 
-		sql = "DELETE from public." + table
+		sql = "DELETE from " + table
 
 		#if condition, add
 		if condition != "":
 			sql += " WHERE " + condition
 
-		cursor = self.conn.cursor()
+		cursor = self.conn.cursor(buffered=True)
 		cursor.execute(sql)
 		self.conn.commit()
 		cursor.close()
